@@ -13,14 +13,18 @@
     array_static_init(&a, &container, sizeof(<array_type>), sizeof(container) / sizeof(<array_type>));
 
     API:
-    void array_dynamic_init(array* a, size_t element_size, size_t array_size)
+    void array_dynamic_init(array* a, size_t slot_size, size_t array_size)
     void array_dynamic_fini(array* a)
-    void array_static_init(array* a, void* static_container, size_t element_size, size_t array_size)
+    void array_static_init(array* a, void* static_container, size_t slot_size, size_t array_size)
     void* array_at(array* a, size_t index)
-    void array_insert(array* a, void* element, size_t index)
+    void* array_insert_slot(array* a, size_t index)
+    void* array_insert_copy(array* a, void* value, size_t index)
     void array_remove(array* a, size_t index)
-    void array_push_back(array* a, void* element)
-    void array_pop_front(array* a)
+    void* array_append_copy(array* a, void* value)
+    void* array_append_slot(array* a)
+    void array_pop(array* a)
+    void* array_front(array* a)
+    void* array_back(array* a)
     size_t array_size(array* a)
     bool array_empty(array* a)
 
@@ -40,118 +44,145 @@
 #endif
 
 typedef struct {
-    void* elements;
-    size_t element_size;
+    void* slots;
+    size_t slot_size;
     size_t count;
     size_t capacity;
     bool is_dynamic;
 } array;
 
-void array_dynamic_init(array* a, size_t element_size, size_t array_size) {
+void array_dynamic_init(array* a, size_t slot_size, size_t array_size) {
     assert(a && "Passed NULL array pointer!");
     a->is_dynamic = true;
-    a->element_size = element_size;
+    a->slot_size = slot_size;
     a->count = 0;
-    a->capacity = element_size * array_size;
-    a->elements = malloc(sizeof(void*) * a->capacity);
-    assert(a->elements && "Malloc failed");
+    a->capacity = slot_size * array_size;
+    a->slots = malloc(sizeof(void*) * a->capacity);
+    assert(a->slots && "Malloc failed");
 #ifdef ARRAY_DEBUG_LOG
-    printf("Initialized dynamic array with a capacity of %ld\n", a->capacity);
+    printf("Initialized dynamic array with a capacity of %ld bytes\n", a->capacity);
 #endif
 }
 
 void array_dynamic_fini(array* a) {
     assert(a && "Passed NULL array pointer!");
     assert(a->is_dynamic && "Passed static array pointer!");
-    free(a->elements);
+    free(a->slots);
 #ifdef ARRAY_DEBUG_LOG
-    printf("Freed %ld elements\n", a->capacity);
+    printf("Freed %ld bytes\n", a->capacity);
 #endif
 }
 
-void array_static_init(array* a, void* static_container, size_t element_size, size_t array_size) {
+void array_static_init(array* a, void* static_container, size_t slot_size, size_t array_size) {
     assert(a && "Passed NULL array pointer!");
     a->is_dynamic = false;
-    a->element_size = element_size;
+    a->slot_size = slot_size;
     a->count = 0;
-    a->capacity = element_size * array_size;
-    a->elements = static_container;
+    a->capacity = slot_size * array_size;
+    a->slots = static_container;
 #ifdef ARRAY_DEBUG_LOG
-    printf("Initialized static array with a capacity of %ld\n", a->capacity);
+    printf("Initialized static array with a capacity of %ld bytes\n", a->capacity);
 #endif
 }
 
 void* array_at(array* a, size_t index) {
     assert(a && "Passed NULL array pointer!");
     assert(index < a->count && "Index error");
-    return (char*)(a->elements) + (a->element_size * index);
+    return (char*)(a->slots) + (a->slot_size * index);
 }
 
-void array_insert(array* a, void* element, size_t index) {
+void* array_insert_slot(array* a, size_t index) {
     assert(a && "Passed NULL array pointer!");
-    assert(element && "Passed NULL element pointer!");
     assert(index <= a->count && "Index error");
     a->count += 1;
     
     // if there is not enough capacity, then double the capacity
-    if (a->is_dynamic && a->count * a->element_size > a->capacity) {
+    if (a->is_dynamic && a->count * a->slot_size > a->capacity) {
         a->capacity *= 2;
-        a->elements = realloc(a->elements, a->capacity);
-        assert(a->elements && "Cannot realloc!");
+        a->slots = realloc(a->slots, a->capacity);
+        assert(a->slots && "Cannot realloc!");
 #ifdef ARRAY_DEBUG_LOG
-        printf("Increased capacity to %ld\n", a->capacity);
+        printf("Increased capacity to %ld bytes\n", a->capacity);
 #endif
     }
-    assert(a->count * a->element_size <= a->capacity && "Array overflow!");
+    assert(a->count * a->slot_size <= a->capacity && "Array overflow!");
 
-    void* element_slot = array_at(a, index);
+    void* slot = array_at(a, index);
 
-    // if needed, shift the rest of the elements to the right
+    // if needed, shift the rest of the slots to the right
     if (index + 1 < a->count) {
-        void* next_element_slot = array_at(a, index + 1);
-        memcpy(next_element_slot, element_slot, (a->count - (index + 1)) * a->element_size);
+        void* next_slot = array_at(a, index + 1);
+        memcpy(next_slot, slot, (a->count - (index + 1)) * a->slot_size);
     }
 
-    // copy the new element into the slot
-    memcpy(element_slot, element, a->element_size);
 #ifdef ARRAY_DEBUG_LOG
-    printf("Added element at index %ld, count is %ld\n", index, a->count);
+    printf("Inserted slot at index %ld, count is %ld\n", index, a->count);
 #endif
+
+    return slot;
+}
+
+void* array_insert_copy(array* a, void* value, size_t index) {
+    assert(value && "Passed NULL value pointer!");
+    void* slot = array_insert_slot(a, index);
+
+    // copy the value into the new slot
+    memcpy(slot, value, a->slot_size);
+#ifdef ARRAY_DEBUG_LOG
+    printf("Stored copy at index %ld\n", index);
+#endif
+
+    return slot;
 }
 
 void array_remove(array* a, size_t index) {
     assert(a && "Passed NULL array pointer!");
     assert(index < a->count && "Index error");
 
-    // if needed, shift the rest of the elements to the left
+    // if needed, shift the rest of the slots to the left
     if (index + 1 < a->count) {
-        void* element_slot = array_at(a, index);
-        void* next_element_slot = array_at(a, index + 1);
-        memcpy(element_slot, next_element_slot, (a->count - (index + 1)) * a->element_size);
+        void* slot = array_at(a, index);
+        void* next_slot = array_at(a, index + 1);
+        memcpy(slot, next_slot, (a->count - (index + 1)) * a->slot_size);
     }
     a->count -= 1;
 #ifdef ARRAY_DEBUG_LOG
-    printf("Removed element at index %ld, count is %ld\n", index, a->count);
+    printf("Removed slot at index %ld, count is %ld\n", index, a->count);
 #endif
 
     // if 1/4 of the capacity is not used, then reduce it by half
-    if (a->is_dynamic && a->count > 0 && a->count * a->element_size <= a->capacity / 4) {
-        a->capacity = a->count * a->element_size * 2;
-        a->elements = realloc(a->elements, a->capacity);
-        assert(a->elements && "Cannot realloc!");
+    if (a->is_dynamic && a->count > 0 && a->count * a->slot_size <= a->capacity / 4) {
+        a->capacity = a->count * a->slot_size * 2;
+        a->slots = realloc(a->slots, a->capacity);
+        assert(a->slots && "Cannot realloc!");
 #ifdef ARRAY_DEBUG_LOG
-        printf("Decreased capacity to %ld\n", a->capacity);
+        printf("Decreased capacity to %ld bytes\n", a->capacity);
 #endif
     }
 }
 
-void array_push_back(array* a, void* element) {
+void* array_append_copy(array* a, void* value) {
     assert(a && "Passed NULL array pointer!");
-    array_insert(a, element, a->count);
+    return array_insert_copy(a, value, a->count);
 }
 
-void array_pop_front(array* a) {
+void* array_append_slot(array* a) {
+    assert(a && "Passed NULL array pointer!");
+    return array_insert_slot(a, a->count);
+}
+
+void array_pop(array* a) {
     array_remove(a, 0);
+}
+
+void* array_front(array* a) {
+    return array_at(a, 0);
+}
+
+void* array_back(array* a) {
+    assert(a && "Passed NULL array pointer!");
+    assert(a->count > 0 && "Index error");
+    return array_at(a, a->count - 1);
 }
 
 size_t array_size(array* a) {
