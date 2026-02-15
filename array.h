@@ -3,19 +3,29 @@
 
     Array contruction/destruction:
     (For a dynamic array)
+    array* a = array_create_dynamic(sizeof(<array_type>), <initial_array_size>);
+    array_destroy(a);
+    or
     array a;
-    array_dynamic_init(&a, sizeof(<array_type>), <initial_array_size>);
-    array_dynamic_fini(&a);
+    array_create_semi_dynamic(&a, sizeof(<array_type>), <initial_array_size>);
+    array_destroy(&a);
 
     (For a static array)
+    <array_type> container[<array_size>];
+    array* a = array_create_semi_static(&container, sizeof(<array_type>), sizeof(container) / sizeof(<array_type>));
+    array_destroy(a);
+    or
     array a;
     <array_type> container[<array_size>];
-    array_static_init(&a, &container, sizeof(<array_type>), sizeof(container) / sizeof(<array_type>));
+    array_create_static(&a, &container, sizeof(<array_type>), sizeof(container) / sizeof(<array_type>));
 
     API:
-    void array_dynamic_init(array* a, size_t slot_size, size_t array_size)
-    void array_dynamic_fini(array* a)
-    void array_static_init(array* a, void* static_container, size_t slot_size, size_t array_size)
+    array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t array_size, array* a, void* static_container)
+    array* array_create_dynamic(size_t slot_size, size_t array_size)
+    void array_create_semi_dynamic(array* a, size_t slot_size, size_t array_size)
+    array* array_create_semi_static(void* static_container, size_t slot_size, size_t array_size)
+    void array_create_static(array* a, void* static_container, size_t slot_size, size_t array_size)
+    void array_destroy(array* a)
     void* array_at(array* a, size_t index)
     void* array_insert_slot(array* a, size_t index)
     void* array_insert_copy(array* a, void* value, size_t index)
@@ -43,46 +53,125 @@
 #include <stdio.h>
 #endif
 
+typedef enum {
+    ARRAY_DYNAMIC,
+    ARRAY_SEMI_DYNAMIC,
+    ARRAY_SEMI_STATIC,
+    ARRAY_STATIC
+} array_dynamicity_e ; 
+
 typedef struct {
     void* slots;
     size_t slot_size;
     size_t count;
     size_t capacity;
-    bool is_dynamic;
+    array_dynamicity_e dynamicity;
 } array;
 
-void array_dynamic_init(array* a, size_t slot_size, size_t array_size) {
-    assert(a && "Passed NULL array pointer!");
-    a->is_dynamic = true;
+array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t array_size, array* a, void* static_container) {
+    assert(slot_size > 0 && "Slot must be larger than 0");
+    assert(array_size > 0 && "Array must be larger than 0");
+    switch (dynamicity)
+    {
+    case ARRAY_DYNAMIC: {
+        a = malloc(sizeof(array));
+        assert(a && "Malloc failed");
+        a->slots = malloc(sizeof(void*) * slot_size * array_size);
+        assert(a->slots && "Malloc failed");
+    } break;
+    case ARRAY_SEMI_DYNAMIC: {
+        assert(a && "Passed NULL array");
+        a->slots = malloc(sizeof(void*) * slot_size * array_size);
+        assert(a->slots && "Malloc failed");
+    } break;
+    case ARRAY_SEMI_STATIC: {
+        a = malloc(sizeof(array));
+        assert(a && "Malloc failed");
+        assert(static_container && "Passed NULL container");
+        a->slots = static_container;
+    } break;
+    case ARRAY_STATIC: {
+        assert(a && "Passed NULL array");
+        assert(static_container && "Passed NULL container");
+        a->slots = static_container;
+    } break;
+    default:
+        assert(0 && "Wrong dynamicity");
+    }
     a->slot_size = slot_size;
     a->count = 0;
     a->capacity = slot_size * array_size;
-    a->slots = malloc(sizeof(void*) * a->capacity);
-    assert(a->slots && "Malloc failed");
+    a->dynamicity = dynamicity;
+
+    return a;
+}
+
+array* array_create_dynamic(size_t slot_size, size_t array_size) {
+    array* a = array_create(ARRAY_DYNAMIC, slot_size, array_size, NULL, NULL);
 #ifdef ARRAY_DEBUG_LOG
     printf("Initialized dynamic array with a capacity of %ld bytes\n", a->capacity);
 #endif
+    return a;
 }
 
-void array_dynamic_fini(array* a) {
-    assert(a && "Passed NULL array pointer!");
-    assert(a->is_dynamic && "Passed static array pointer!");
-    free(a->slots);
+void array_create_semi_dynamic(array* a, size_t slot_size, size_t array_size) {
+    array_create(ARRAY_SEMI_DYNAMIC, slot_size, array_size, a, NULL);
 #ifdef ARRAY_DEBUG_LOG
-    printf("Freed %ld bytes\n", a->capacity);
+    printf("Initialized semi-dynamic array with a capacity of %ld bytes\n", a->capacity);
 #endif
 }
 
-void array_static_init(array* a, void* static_container, size_t slot_size, size_t array_size) {
-    assert(a && "Passed NULL array pointer!");
-    a->is_dynamic = false;
-    a->slot_size = slot_size;
-    a->count = 0;
-    a->capacity = slot_size * array_size;
-    a->slots = static_container;
+array* array_create_semi_static(void* static_container, size_t slot_size, size_t array_size) {
+    array* a = array_create(ARRAY_SEMI_STATIC, slot_size, array_size, NULL, static_container);
+#ifdef ARRAY_DEBUG_LOG
+    printf("Initialized semi-static array with a capacity of %ld bytes\n", a->capacity);
+#endif
+    return a;
+}
+
+void array_create_static(array* a, void* static_container, size_t slot_size, size_t array_size) {
+    array_create(ARRAY_STATIC, slot_size, array_size, a, static_container);
 #ifdef ARRAY_DEBUG_LOG
     printf("Initialized static array with a capacity of %ld bytes\n", a->capacity);
 #endif
+}
+
+void array_destroy(array* a) {
+    assert(a && "Passed NULL array pointer!");
+    switch (a->dynamicity)
+    {
+    case ARRAY_DYNAMIC: {
+        assert(a->slots && "Free failed");
+        free(a->slots);
+#ifdef ARRAY_DEBUG_LOG
+        printf("Freed %ld bytes\n", a->capacity);
+#endif
+        assert(a && "Free failed");
+        free(a);
+#ifdef ARRAY_DEBUG_LOG
+        printf("Freed %ld bytes\n", sizeof(array));
+#endif
+    } break;
+    case ARRAY_SEMI_DYNAMIC: {
+        assert(a->slots && "Free failed");
+        free(a->slots);
+#ifdef ARRAY_DEBUG_LOG
+        printf("Freed %ld bytes\n", a->capacity);
+#endif
+    } break;
+    case ARRAY_SEMI_STATIC: {
+        assert(a && "Free failed");
+        free(a);
+#ifdef ARRAY_DEBUG_LOG
+        printf("Freed %ld bytes\n", sizeof(array));
+#endif
+    } break;
+    case ARRAY_STATIC: {
+        // nop
+    } break;
+    default:
+        assert(0 && "Wrong dynamicity");
+    }
 }
 
 void* array_at(array* a, size_t index) {
@@ -97,15 +186,18 @@ void* array_insert_slot(array* a, size_t index) {
     a->count += 1;
     
     // if there is not enough capacity, then double the capacity
-    if (a->is_dynamic && a->count * a->slot_size > a->capacity) {
-        a->capacity *= 2;
-        a->slots = realloc(a->slots, a->capacity);
-        assert(a->slots && "Cannot realloc!");
+    if (a->dynamicity == ARRAY_DYNAMIC || a->dynamicity == ARRAY_SEMI_DYNAMIC) {
+        if (a->count * a->slot_size > a->capacity) {
+            a->capacity *= 2;
+            a->slots = realloc(a->slots, a->capacity);
+            assert(a->slots && "Cannot realloc!");
 #ifdef ARRAY_DEBUG_LOG
-        printf("Increased capacity to %ld bytes\n", a->capacity);
+            printf("Increased capacity to %ld bytes\n", a->capacity);
 #endif
+        }
+    } else {
+        assert(a->count * a->slot_size <= a->capacity && "Array overflow!");
     }
-    assert(a->count * a->slot_size <= a->capacity && "Array overflow!");
 
     void* slot = array_at(a, index);
 
@@ -151,13 +243,15 @@ void array_remove(array* a, size_t index) {
 #endif
 
     // if 1/4 of the capacity is not used, then reduce it by half
-    if (a->is_dynamic && a->count > 0 && a->count * a->slot_size <= a->capacity / 4) {
-        a->capacity = a->count * a->slot_size * 2;
-        a->slots = realloc(a->slots, a->capacity);
-        assert(a->slots && "Cannot realloc!");
+    if (a->dynamicity == ARRAY_DYNAMIC || a->dynamicity == ARRAY_SEMI_DYNAMIC) {
+        if (a->count > 0 && a->count * a->slot_size <= a->capacity / 4) {
+            a->capacity = a->count * a->slot_size * 2;
+            a->slots = realloc(a->slots, a->capacity);
+            assert(a->slots && "Cannot realloc!");
 #ifdef ARRAY_DEBUG_LOG
-        printf("Decreased capacity to %ld bytes\n", a->capacity);
+            printf("Decreased capacity to %ld bytes\n", a->capacity);
 #endif
+        }
     }
 }
 
