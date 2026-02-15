@@ -7,4 +7,4 @@ example.o: example.c array.h
 	gcc -O0 -Wall -ggdb -c example.c
 
 clean:
-	rm example.exe example.o
+	rm -rf example example.exe example.o

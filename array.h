@@ -6,25 +6,23 @@
     array* a = array_create_dynamic(sizeof(<array_type>), <initial_array_size>);
     array_destroy(a);
     or
-    array a;
-    array_create_semi_dynamic(&a, sizeof(<array_type>), <initial_array_size>);
-    array_destroy(&a);
+    array* a = array_create_semi_dynamic(&(array){0}, sizeof(<array_type>), <initial_array_size>);
+    array_destroy(a);
 
     (For a static array)
-    <array_type> container[<array_size>];
-    array* a = array_create_semi_static(&container, sizeof(<array_type>), sizeof(container) / sizeof(<array_type>));
+    array* a = array_create_semi_static(&(<array_type>[<array_size>]){0}, sizeof(<array_type>), <array_size>);
     array_destroy(a);
     or
-    array a;
+    
     <array_type> container[<array_size>];
-    array_create_static(&a, &container, sizeof(<array_type>), sizeof(container) / sizeof(<array_type>));
+    array* a = array_create_static(&(array){0}, &(<array_type>[<array_size>]){0}, sizeof(<array_type>), <array_size>);
 
     API:
     array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t array_size, array* a, void* static_container)
     array* array_create_dynamic(size_t slot_size, size_t array_size)
-    void array_create_semi_dynamic(array* a, size_t slot_size, size_t array_size)
+    array* array_create_semi_dynamic(array* a, size_t slot_size, size_t array_size)
     array* array_create_semi_static(void* static_container, size_t slot_size, size_t array_size)
-    void array_create_static(array* a, void* static_container, size_t slot_size, size_t array_size)
+    array* array_create_static(array* a, void* static_container, size_t slot_size, size_t array_size)
     void array_destroy(array* a)
     void* array_at(array* a, size_t index)
     void* array_insert_slot(array* a, size_t index)
@@ -114,11 +112,12 @@ array* array_create_dynamic(size_t slot_size, size_t array_size) {
     return a;
 }
 
-void array_create_semi_dynamic(array* a, size_t slot_size, size_t array_size) {
+array* array_create_semi_dynamic(array* a, size_t slot_size, size_t array_size) {
     array_create(ARRAY_SEMI_DYNAMIC, slot_size, array_size, a, NULL);
 #ifdef ARRAY_DEBUG_LOG
     printf("Initialized semi-dynamic array with a capacity of %ld bytes\n", a->capacity);
 #endif
+    return a;
 }
 
 array* array_create_semi_static(void* static_container, size_t slot_size, size_t array_size) {
@@ -129,11 +128,12 @@ array* array_create_semi_static(void* static_container, size_t slot_size, size_t
     return a;
 }
 
-void array_create_static(array* a, void* static_container, size_t slot_size, size_t array_size) {
+array* array_create_static(array* a, void* static_container, size_t slot_size, size_t array_size) {
     array_create(ARRAY_STATIC, slot_size, array_size, a, static_container);
 #ifdef ARRAY_DEBUG_LOG
     printf("Initialized static array with a capacity of %ld bytes\n", a->capacity);
 #endif
+    return a;
 }
 
 void array_destroy(array* a) {
