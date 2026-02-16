@@ -28,6 +28,7 @@
     void* array_insert_slot(array* a, size_t index)
     void* array_insert_copy(array* a, void* value, size_t index)
     void array_remove(array* a, size_t index)
+    void array_clear(array* a)
     void* array_append_copy(array* a, void* value)
     void* array_append_slot(array* a)
     void array_pop(array* a)
@@ -253,6 +254,11 @@ void array_remove(array* a, size_t index) {
 #endif
         }
     }
+}
+
+void array_clear(array* a) {
+    assert(a && "Passed NULL array pointer!");
+    a->count = 0;
 }
 
 void* array_append_copy(array* a, void* value) {
