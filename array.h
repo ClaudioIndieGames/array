@@ -35,7 +35,7 @@
     void* array_front(array* a)
     void* array_back(array* a)
     size_t array_size(array* a)
-    bool array_empty(array* a)
+    char array_empty(array* a)
 
     Claudio Raccomandato, February 15 2026
 */
@@ -43,14 +43,7 @@
 #ifndef __ARRAY_H__
 #define __ARRAY_H__
 
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <assert.h>
-
-#ifdef ARRAY_DEBUG_LOG
-#include <stdio.h>
-#endif
+#include <stddef.h>
 
 typedef enum {
     ARRAY_DYNAMIC,
@@ -66,6 +59,35 @@ typedef struct {
     size_t capacity;
     array_dynamicity_e dynamicity;
 } array;
+
+array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t array_size, array* a, void* static_container);
+array* array_create_dynamic(size_t slot_size, size_t array_size);
+array* array_create_semi_dynamic(array* a, size_t slot_size, size_t array_size);
+array* array_create_semi_static(void* static_container, size_t slot_size, size_t array_size);
+array* array_create_static(array* a, void* static_container, size_t slot_size, size_t array_size);
+void array_destroy(array* a);
+void* array_at(array* a, size_t index);
+void* array_insert_slot(array* a, size_t index);
+void* array_insert_copy(array* a, void* value, size_t index);
+void array_remove(array* a, size_t index);
+void array_clear(array* a);
+void* array_append_copy(array* a, void* value);
+void* array_append_slot(array* a);
+void array_pop(array* a);
+void* array_front(array* a);
+void* array_back(array* a);
+size_t array_size(array* a);
+char array_empty(array* a);
+
+#ifdef ARRAY_IMPLEMENTATION
+
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+
+#ifdef ARRAY_DEBUG_LOG
+#include <stdio.h>
+#endif
 
 array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t array_size, array* a, void* static_container) {
     assert(slot_size > 0 && "Slot must be larger than 0");
@@ -290,8 +312,10 @@ size_t array_size(array* a) {
     return a->count;
 }
 
-bool array_empty(array* a) {
+char array_empty(array* a) {
     return (array_size(a) == 0);
 }
+
+#endif  // ARRAY_IMPLEMENTATION
 
 #endif  // __ARRAY_H__
