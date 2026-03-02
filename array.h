@@ -364,7 +364,7 @@ void array_sort(array* a, int (*compare_func)(const void*, const void*)) {
 
 void* array_find(array* a, const void* value, int (*compare_func)(const void*, const void*)) {
     for (size_t i = 0; i < a->count; ++i) {
-        void* e = arrary_at(a, i);
+        void* e = array_at(a, i);
         if (compare_func(e, value)) {
             return e;
         }
