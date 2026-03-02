@@ -1,28 +1,63 @@
 /*
-    This library implements a dynamic and static array interface.
+    # array.h
+    ## Description
+    This header-only library implements a universal interface for *dynamic* and *static* arrays.
 
-    Array contruction/destruction:
-    (For a dynamic array)
-    array* a = array_create_dynamic(sizeof(<array_type>), <initial_array_size>);
-    array_destroy(a);
-    or
-    array* a = array_create_semi_dynamic(&(array){0}, sizeof(<array_type>), <initial_array_size>);
-    array_destroy(a);
+    ## How to use it
+    Since it's a header-only library, all you need to do is use `#include "array.h"` in your project files.
+    Only remember to define `ARRAY_IMPLEMENTATION`, in exactly ***one*** translation unit (e.g., main.c) before the inclusion:
+    ```c
+    #define ARRAY_IMPLEMENTATION
+    #include "array.h"
+    ```
 
-    (For a static array)
-    array* a = array_create_semi_static(&(<array_type>[<array_size>]){0}, sizeof(<array_type>), <array_size>);
-    array_destroy(a);
-    or
-    
-    <array_type> container[<array_size>];
-    array* a = array_create_static(&(array){0}, &(<array_type>[<array_size>]){0}, sizeof(<array_type>), <array_size>);
+    ### Header and container
+    The library uses a header (the "array" type, including all the array metadata) and a container (the actual data).
+    Header and container can be provided by the user (static implementation) or created by the library (dynamic implementation).
+    There are four possible array combinations:
 
-    API:
-    array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t array_size, array* a, void* static_container)
-    array* array_create_dynamic(size_t slot_size, size_t array_size)
-    array* array_create_semi_dynamic(array* a, size_t slot_size, size_t array_size)
-    array* array_create_semi_static(void* static_container, size_t slot_size, size_t array_size)
-    array* array_create_static(array* a, void* static_container, size_t slot_size, size_t array_size)
+    1. dynamic array (header and container created by the library)
+    ```c
+    // array* array_create_dynamic(size_t slot_size, size_t initial_container_size)
+    array* a = array_create_dynamic(sizeof(int), 10);
+    array_destroy(a);
+    ```
+
+    3. semi-dynamic array (header provided by the user and container created by the library) **[MOST COMMON]**
+    ```c
+    // array* array_create_semi_dynamic(array* a, size_t slot_size, size_t initial_container_size)
+    array header;
+    array* a = array_create_semi_dynamic(&header, sizeof(int), 10);
+    // or array* a = array_create_semi_dynamic(&(array){0}, sizeof(int), 10);
+    array_destroy(a);
+    ```
+
+    4. semi-static array (header created by the library and container provided by the user)
+    ```c
+    // array* array_create_semi_static(void* static_container, size_t slot_size, size_t container_size)
+    int container[10];
+    array* a = array_create_semi_static(&container, sizeof(int), 10);
+    // or array* a = array_create_semi_static(&(int[10]){0}, sizeof(int), 10);
+    array_destroy(a);
+    ```
+
+    5. static array (header and container provided by the user)
+    ```c
+    // array* array_create_static(array* a, void* static_container, size_t slot_size, size_t container_size)
+    array header;
+    int container[int];
+    array* a = array_create_static(&header, &container, sizeof(int), 10);
+    // or array* a = array_create_semi_static(&(array){0}, &(int[10]){0}, sizeof(int), 10);
+    array_destroy(a);  // optional
+    ```
+
+    ## API
+    ```c
+    array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t container_size, array* a, void* static_container)
+    array* array_create_dynamic(size_t slot_size, size_t initial_container_size)
+    array* array_create_semi_dynamic(array* a, size_t slot_size, size_t initial_container_size)
+    array* array_create_semi_static(void* static_container, size_t slot_size, size_t container_size)
+    array* array_create_static(array* a, void* static_container, size_t slot_size, size_t container_size)
     void array_destroy(array* a)
     void* array_at(array* a, size_t index)
     void* array_insert_slot(array* a, size_t index)
@@ -36,6 +71,10 @@
     void* array_back(array* a)
     size_t array_size(array* a)
     char array_empty(array* a)
+    void array_sort(array* a, int (*compare_func)(const void*, const void*))
+    void* array_find(array* a, const void* value, int (*compare_func)(const void*, const void*))
+    char array_binary_search(array* a, const void* value, int (*compare_func)(const void*, const void*), size_t* pos)
+    ```
 
     Claudio Raccomandato, February 15 2026
 */
@@ -60,11 +99,11 @@ typedef struct {
     array_dynamicity_e dynamicity;
 } array;
 
-array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t array_size, array* a, void* static_container);
-array* array_create_dynamic(size_t slot_size, size_t array_size);
-array* array_create_semi_dynamic(array* a, size_t slot_size, size_t array_size);
-array* array_create_semi_static(void* static_container, size_t slot_size, size_t array_size);
-array* array_create_static(array* a, void* static_container, size_t slot_size, size_t array_size);
+array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t container_size, array* a, void* static_container);
+array* array_create_dynamic(size_t slot_size, size_t initial_container_size);
+array* array_create_semi_dynamic(array* a, size_t slot_size, size_t initial_container_size);
+array* array_create_semi_static(void* static_container, size_t slot_size, size_t container_size);
+array* array_create_static(array* a, void* static_container, size_t slot_size, size_t container_size);
 void array_destroy(array* a);
 void* array_at(array* a, size_t index);
 void* array_insert_slot(array* a, size_t index);
@@ -78,6 +117,9 @@ void* array_front(array* a);
 void* array_back(array* a);
 size_t array_size(array* a);
 char array_empty(array* a);
+void array_sort(array* a, int (*compare_func)(const void*, const void*));
+void* array_find(array* a, const void* value, int (*compare_func)(const void*, const void*));
+char array_binary_search(array* a, const void* value, int (*compare_func)(const void*, const void*), size_t* pos);
 
 #ifdef ARRAY_IMPLEMENTATION
 
@@ -89,20 +131,20 @@ char array_empty(array* a);
 #include <stdio.h>
 #endif
 
-array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t array_size, array* a, void* static_container) {
+array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t container_size, array* a, void* static_container) {
     assert(slot_size > 0 && "Slot must be larger than 0");
-    assert(array_size > 0 && "Array must be larger than 0");
+    assert(container_size > 0 && "Container must be larger than 0");
     switch (dynamicity)
     {
     case ARRAY_DYNAMIC: {
         a = malloc(sizeof(array));
         assert(a && "Malloc failed");
-        a->slots = malloc(sizeof(void*) * slot_size * array_size);
+        a->slots = malloc(sizeof(void*) * slot_size * container_size);
         assert(a->slots && "Malloc failed");
     } break;
     case ARRAY_SEMI_DYNAMIC: {
         assert(a && "Passed NULL array");
-        a->slots = malloc(sizeof(void*) * slot_size * array_size);
+        a->slots = malloc(sizeof(void*) * slot_size * container_size);
         assert(a->slots && "Malloc failed");
     } break;
     case ARRAY_SEMI_STATIC: {
@@ -121,38 +163,38 @@ array* array_create(array_dynamicity_e dynamicity, size_t slot_size, size_t arra
     }
     a->slot_size = slot_size;
     a->count = 0;
-    a->capacity = slot_size * array_size;
+    a->capacity = slot_size * container_size;
     a->dynamicity = dynamicity;
 
     return a;
 }
 
-array* array_create_dynamic(size_t slot_size, size_t array_size) {
-    array* a = array_create(ARRAY_DYNAMIC, slot_size, array_size, NULL, NULL);
+array* array_create_dynamic(size_t slot_size, size_t initial_container_size) {
+    array* a = array_create(ARRAY_DYNAMIC, slot_size, initial_container_size, NULL, NULL);
 #ifdef ARRAY_DEBUG_LOG
     printf("Initialized dynamic array with a capacity of %ld bytes\n", a->capacity);
 #endif
     return a;
 }
 
-array* array_create_semi_dynamic(array* a, size_t slot_size, size_t array_size) {
-    array_create(ARRAY_SEMI_DYNAMIC, slot_size, array_size, a, NULL);
+array* array_create_semi_dynamic(array* a, size_t slot_size, size_t initial_container_size) {
+    array_create(ARRAY_SEMI_DYNAMIC, slot_size, initial_container_size, a, NULL);
 #ifdef ARRAY_DEBUG_LOG
     printf("Initialized semi-dynamic array with a capacity of %ld bytes\n", a->capacity);
 #endif
     return a;
 }
 
-array* array_create_semi_static(void* static_container, size_t slot_size, size_t array_size) {
-    array* a = array_create(ARRAY_SEMI_STATIC, slot_size, array_size, NULL, static_container);
+array* array_create_semi_static(void* static_container, size_t slot_size, size_t container_size) {
+    array* a = array_create(ARRAY_SEMI_STATIC, slot_size, container_size, NULL, static_container);
 #ifdef ARRAY_DEBUG_LOG
     printf("Initialized semi-static array with a capacity of %ld bytes\n", a->capacity);
 #endif
     return a;
 }
 
-array* array_create_static(array* a, void* static_container, size_t slot_size, size_t array_size) {
-    array_create(ARRAY_STATIC, slot_size, array_size, a, static_container);
+array* array_create_static(array* a, void* static_container, size_t slot_size, size_t container_size) {
+    array_create(ARRAY_STATIC, slot_size, container_size, a, static_container);
 #ifdef ARRAY_DEBUG_LOG
     printf("Initialized static array with a capacity of %ld bytes\n", a->capacity);
 #endif
@@ -314,6 +356,64 @@ size_t array_size(array* a) {
 
 char array_empty(array* a) {
     return (array_size(a) == 0);
+}
+
+void array_sort(array* a, int (*compare_func)(const void*, const void*)) {
+    qsort(a->slots, a->count, a->slot_size, compare_func);
+}
+
+void* array_find(array* a, const void* value, int (*compare_func)(const void*, const void*)) {
+    for (size_t i = 0; i < a->count; ++i) {
+        void* e = arrary_at(a, i);
+        if (compare_func(e, value)) {
+            return e;
+        }
+    }
+    return NULL;
+}
+
+
+char array_binary_search(array* a, const void* value, int (*compare_func)(const void*, const void*), size_t* pos) {
+    assert(a && "Passed NULL array pointer!");
+    assert(value && "Passed NULL value");
+    assert(compare_func && "Passed NULL compare function");
+    assert(pos && "Passed NULL position variable");
+    if (array_empty(a)){
+        *pos = 0;
+        return 0;
+    }
+
+    size_t left = 0;
+    size_t right = array_size(a) - 1;
+    while (left <= right) {
+        size_t mid = left + (right - left) / 2;
+        const void* element = array_at(a, mid);
+
+        // compare the element with the value to search
+        int compare_res = compare_func(value, element);
+
+        // element found
+        if (compare_res == 0){
+            *pos = mid;
+            return 1;
+        }
+
+        // value is smaller, ignore right half
+        if (compare_res < 0) {
+            if (mid == 0) {
+                break;
+            }
+            right = mid - 1;
+        }
+        // value is bigger, ignore left half 
+        else {
+            left = mid + 1;
+        }
+    }
+
+    // element was not found, return the optimal insert position
+    *pos = left;
+    return 0;
 }
 
 #endif  // ARRAY_IMPLEMENTATION
